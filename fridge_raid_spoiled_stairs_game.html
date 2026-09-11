@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>돼지의 하늘 계단 오르기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=DungGeunMo&display=swap');
+
+        body {
+            font-family: 'DungGeunMo', 'Jua', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            background-color: #0f172a;
+            color: #ffffff;
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            touch-action: none;
+        }
+
+        .soft-card {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(8px);
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            border-radius: 16px;
+        }
+
+        .soft-btn {
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: all 0.15s ease-out;
+            touch-action: none;
+        }
+
+        .soft-btn:active {
+            transform: translateY(2px) scale(0.98);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #f472b6;
+            border-radius: 4px;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            max-height: 900px;
+            margin: 0 auto;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(244, 114, 182, 0.25);
+            background: #0f172a;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-slate-950 p-0 m-0">
+
+    <!-- Game Main Container -->
+    <div id="game-container" class="relative flex flex-col justify-between overflow-hidden">
+        
+        <!-- Canvas Layer -->
+        <canvas id="gameCanvas" class="absolute inset-0 z-0"></canvas>
+
+        <!-- Touch Screen Side Indicators for Mobile Play -->
+        <div id="screen-touch-zones" class="absolute inset-0 z-10 flex pointer-events-auto opacity-0 transition-opacity duration-300">
+            <div id="zone-turn" class="w-1/2 h-full"></div>
+            <div id="zone-climb" class="w-1/2 h-full"></div>
+        </div>
+
+        <!-- Top HUD Overlay -->
+        <div id="hud" class="relative z-20 p-4 w-full flex flex-col items-center pointer-events-none transition-opacity duration-300 opacity-0">
+            <!-- Center Big Cumulative Stairs Counter & Star Inventory -->
+            <div class="flex flex-col items-center mb-2">
+                <div class="soft-card px-8 py-2 flex flex-col items-center border-2 border-pink-400/60 shadow-2xl">
+                    <span class="text-[11px] text-pink-300 font-bold tracking-widest uppercase">CURRENT STAIRS</span>
+                    <span id="score-text" class="text-4xl md:text-5xl font-black text-amber-300 tracking-wider drop-shadow-[0_2px_8px_rgba(251,191,36,0.6)]">0 계단</span>
+                </div>
+                
+                <div class="flex gap-2 mt-1.5">
+                    <div class="px-3 py-0.5 bg-slate-900/80 rounded-full border border-sky-400/30 text-[11px] text-sky-200 font-bold">
+                        최고 기록: <span id="best-score-text" class="text-amber-300">0 계단</span>
+                    </div>
+                    <!-- Star Items Count Badge -->
+                    <div class="px-3 py-0.5 bg-amber-500/20 rounded-full border border-amber-400/50 text-[11px] text-amber-300 font-bold flex items-center gap-1">
+                        ⭐ <span id="item-count-text">0</span> / 300
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time Limit Gauge Bar -->
+            <div class="w-full bg-slate-900/90 border-2 border-white/20 rounded-full h-5 p-1 shadow-xl relative overflow-hidden">
+                <div id="gauge-fill" class="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full transition-all duration-75 ease-linear w-full"></div>
+            </div>
+        </div>
+
+        <!-- Main Start Screen / Menu Overlay -->
+        <div id="main-menu" class="absolute inset-0 z-30 flex flex-col items-center justify-between p-6 bg-slate-950/85 backdrop-blur-md">
+            <!-- Game Title Header -->
+            <div class="text-center mt-6">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-pink-500/20 border border-pink-400/40 rounded-full text-pink-300 text-xs font-bold mb-3 shadow-inner">
+                    <i class="fa-solid fa-elevator text-amber-300"></i> 400계단 엘리베이터 & 별 300개 보존!
+                </div>
+                <h1 class="text-3xl md:text-4xl font-black text-pink-300 tracking-wide drop-shadow-[0_4px_12px_rgba(244,114,182,0.4)]">
+                    돼지의 하늘 계단
+                </h1>
+                <p class="text-xs text-slate-300 mt-2 font-medium">상한 음식을 먹어도 체력이 줄지 않습니다!</p>
+            </div>
+
+            <!-- Character Showcase Center -->
+            <div class="flex flex-col items-center w-full my-auto">
+                <div id="selected-char-card" class="soft-card p-5 w-full max-w-xs text-center border-2 border-pink-400/50 relative">
+                    <div id="menu-char-avatar" class="w-24 h-24 mx-auto mb-3 flex items-center justify-center text-6xl bg-gradient-to-b from-sky-300/20 to-pink-300/20 rounded-2xl border border-white/20 shadow-inner">
+                        🐷
+                    </div>
+                    <h2 id="menu-char-name" class="text-xl font-bold text-pink-200">탐험가 피기</h2>
+                    <p id="menu-char-tagline" class="text-xs text-slate-300 mt-1 line-clamp-2">"맛있는 음식을 찾아 도시 너머 구름 위로!"</p>
+                </div>
+            </div>
+
+            <!-- Main Menu 2 Buttons -->
+            <div class="w-full space-y-3 mb-4">
+                <button id="btn-start" class="w-full py-4 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-extrabold text-xl soft-btn shadow-lg flex items-center justify-center gap-2 border border-pink-200/50">
+                    <i class="fa-solid fa-play"></i> 등반 시작하기
+                </button>
+                
+                <button id="btn-open-chars" class="w-full py-3.5 bg-slate-800/90 hover:bg-slate-700/90 text-pink-300 font-bold text-base soft-btn flex items-center justify-center gap-2 border border-pink-400/40">
+                    <i class="fa-solid fa-piggy-bank"></i> 캐릭터 옷장 & 도감
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Modal with Revive Button -->
+        <div id="gameover-modal" class="absolute inset-0 z-30 flex flex-col items-center justify-center p-5 bg-slate-950/90 transition-opacity duration-300 opacity-0 pointer-events-none backdrop-blur-md">
+            <div class="soft-card border-2 border-rose-400/60 p-5 w-full max-w-sm text-center shadow-2xl relative">
+                <div class="w-16 h-16 bg-rose-500/20 text-rose-300 border-2 border-rose-400/40 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl shadow-inner">
+                    <span id="gameover-icon">🐷</span>
+                </div>
+                <h2 class="text-2xl font-black text-rose-300 mb-1">등반 실패!</h2>
+                <p id="gameover-subtitle" class="text-xs text-slate-300 mb-3">발을 헛디뎠거나 시간 체력이 모두 소진되었습니다!</p>
+
+                <!-- Eaten Spoiled Food Hazard Info Box -->
+                <div id="spoiled-hazard-box" class="bg-slate-950/80 rounded-xl p-3 border border-amber-500/40 mb-3 text-left hidden">
+                    <div class="flex items-center gap-2 mb-1 text-amber-300 font-bold text-xs">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm"></i>
+                        <span id="hazard-title">상한 음식 섭취 유해 정보</span>
+                    </div>
+                    <p id="hazard-desc" class="text-xs text-slate-300 leading-relaxed font-sans">
+                        상한 음식을 먹으면 식중독균으로 인해 배탈이나 복통이 발생할 수 있습니다!
+                    </p>
+                </div>
+
+                <div class="bg-slate-950/60 rounded-xl p-3 border border-white/10 mb-4 space-y-1.5 text-left">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-400">이번 도달 높이</span>
+                        <span id="final-score" class="text-xl font-black text-amber-300">0 계단</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs pt-1.5 border-t border-slate-800">
+                        <span class="text-slate-400">최고 높이 기록</span>
+                        <span id="final-best-score" class="font-bold text-sky-300">0 계단</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs pt-1.5 border-t border-slate-800">
+                        <span class="text-slate-400">누적 보존 별 아이템</span>
+                        <span id="final-item-count" class="font-bold text-amber-300">⭐ 0개</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <!-- Revive Button requiring 300 preserved stars -->
+                    <button id="btn-revive" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base soft-btn flex items-center justify-center gap-2 border border-yellow-200/50 shadow-amber-500/30">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> ⭐ 300개 보존 부활! (별 유지)
+                    </button>
+                    
+                    <button id="btn-restart" class="w-full py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-bold text-sm soft-btn flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> 처음부터 다시 오르기
+                    </button>
+                    <button id="btn-go-menu" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-white/10 transition">
+                        메인 메뉴로 돌아가기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Character Selector & Spoiled Component Encyclopedia Modal -->
+        <div id="char-modal" class="absolute inset-0 z-40 flex flex-col bg-slate-950/95 transition-all duration-300 transform translate-y-full backdrop-blur-md">
+            <!-- Modal Header -->
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/80">
+                <div>
+                    <h2 class="text-base font-bold text-pink-300 flex items-center gap-2">
+                        <i class="fa-solid fa-piggy-bank"></i> 돼지 캐릭터 & 상한 음식 도감
+                    </h2>
+                    <p class="text-xs text-slate-400">높은 곳까지 올라가 다양한 돼지 친구들을 해금하세요!</p>
+                </div>
+                <button id="btn-close-chars" class="w-8 h-8 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Scrollable Character List -->
+            <div id="char-list-container" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Dynamically populated via JavaScript -->
+            </div>
+        </div>
+
+        <!-- On-Screen Mobile Gameplay Touch Buttons Overlay -->
+        <div id="touch-controls" class="absolute bottom-6 left-0 right-0 z-20 px-6 flex justify-between gap-5 pointer-events-none opacity-0 transition-opacity duration-300">
+            <!-- Turn Button -->
+            <button id="btn-touch-turn" class="pointer-events-auto flex-1 py-5 bg-amber-500/90 active:bg-amber-600 text-white rounded-2xl border-2 border-amber-300/60 flex items-center justify-center soft-btn select-none backdrop-blur-sm shadow-xl">
+                <i class="fa-solid fa-arrows-rotate text-2xl mr-2"></i>
+                <span class="font-black text-lg tracking-wider">방향 전환</span>
+            </button>
+
+            <!-- Step / Climb Button -->
+            <button id="btn-touch-climb" class="pointer-events-auto flex-1 py-5 bg-pink-500/90 active:bg-pink-600 text-white rounded-2xl border-2 border-pink-300/60 flex items-center justify-center soft-btn select-none backdrop-blur-sm shadow-xl">
+                <i class="fa-solid fa-shoe-prints text-2xl mr-2 -rotate-45"></i>
+                <span class="font-black text-lg tracking-wider">껑충 오르기</span>
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // Pig Characters Data
+        const CHARACTERS = [
+            {
+                id: 'pig_base',
+                name: '탐험가 피기',
+                milestone: 0,
+                icon: '🐷',
+                color: '#f472b6',
+                tagline: '하늘 끝에 맛있는 음식이 있다는 소문을 들은 돼지!',
+                description: '가장 통통하고 밝은 탐험가 돼지. 하늘을 향해 끊임없이 계단을 오릅니다.'
+            },
+            {
+                id: 'pig_chef',
+                name: '요리사 꿀꿀이',
+                milestone: 150,
+                icon: '🐷‍🍳',
+                color: '#fbbf24',
+                tagline: '상한 재료와 신선한 재료를 구분하는 견습 요리사!',
+                description: '【150계단 달성 해금】 신선한 재료만 찾고 싶지만, 계단 곳곳에 방치된 상한 음식 때문에 곤혹을 치르고 있습니다.'
+            },
+            {
+                id: 'pig_super',
+                name: '슈퍼 돈돈이',
+                milestone: 350,
+                icon: '🐽',
+                color: '#60a5fa',
+                tagline: '하늘 높이 날아오르는 슈퍼 히어로 돼지!',
+                description: '【350계단 달성 해금】 망토를 휘날리며 하늘 높은 고도까지 도전하는 용감한 삼겹 히어로!'
+            },
+            {
+                id: 'pig_king',
+                name: '돈까스 국왕님',
+                milestone: 700,
+                icon: '👑',
+                color: '#c084fc',
+                tagline: '왕국을 비우고 하늘 산책을 나온 위엄 있는 돼지 왕!',
+                description: '【700계단 달성 해금】 왕관을 쓰고 느긋하게 하늘 계단을 오르는 돼지 왕국의 국왕님.'
+            },
+            {
+                id: 'pig_astro',
+                name: '우주 탐사 피기',
+                milestone: 1200,
+                icon: '🚀',
+                color: '#34d399',
+                tagline: '대기권을 뚫고 우주로 진출한 우주 Pig!',
+                description: '【1200계단 달성 해금】 대기권과 우주 공간까지 도달한 대단한 돼지 과학자!'
+            }
+        ];
+
+        // Spoiled Foods catalog
+        const SPOILED_FOODS = [
+            {
+                type: 'milk',
+                icon: '🥛',
+                name: '상한 우유',
+                symptom: '유당 부패 및 병원성 대장균 증식!',
+                effect: '배탈과 복통, 급성 설사를 유발할 수 있는 상한 음식입니다.'
+            },
+            {
+                type: 'meat',
+                icon: '🥩',
+                name: '변색된 상한 고기',
+                symptom: '살모넬라균 및 황색포도상구균 감염!',
+                effect: '고열과 심한 구토, 복부 경련을 일으킬 수 있는 오염된 식재료입니다.'
+            },
+            {
+                type: 'bread',
+                icon: '🍞',
+                name: '곰팡이 피어난 빵',
+                symptom: '마이코톡신(곰팡이 독소) 배출!',
+                effect: '간 독성 및 메스꺼움을 유발할 수 있으니 섭취를 피해야 합니다.'
+            },
+            {
+                type: 'egg',
+                icon: '🥚',
+                name: '썩은 계란',
+                symptom: '살모넬라 식중독 독소 위험!',
+                effect: '오한과 급성 장염 증세를 일으킬 수 있는 부패된 계란입니다.'
+            },
+            {
+                type: 'can',
+                icon: '🥫',
+                name: '부풀어 오른 통조림',
+                symptom: '치명적인 보툴리누스 독소!',
+                effect: '신경 독소가 발생할 위험이 높은 변질된 통조림입니다.'
+            }
+        ];
+
+        // Web Audio API Sound Synthesizer
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playStep() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(540, this.ctx.currentTime + 0.06);
+                
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.06);
+            }
+
+            playTurn() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.08);
+                
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+
+            playStar() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(520, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1040, this.ctx.currentTime + 0.1);
+                
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playElevator() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.4);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.4);
+            }
+
+            playRevive() {
+                if (!this.ctx) return;
+                const notes = [300, 450, 600, 900];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.08 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.08);
+                    osc.stop(this.ctx.currentTime + idx * 0.08 + 0.15);
+                });
+            }
+
+            playEatSpoiled() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(90, this.ctx.currentTime + 0.25);
+                
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playFall() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(350, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.35);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.35);
+            }
+        }
+
+        const audio = new SoundFX();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let gameState = 'MENU';
+        let selectedCharId = localStorage.getItem('pig_selected_char') || 'pig_base';
+        let bestScore = parseInt(localStorage.getItem('pig_best_score') || '0', 10);
+        let unlockedCharIds = JSON.parse(localStorage.getItem('pig_unlocked_chars') || '["pig_base"]');
+
+        let score = 0;
+        let starItemCount = parseInt(localStorage.getItem('pig_star_count') || '0', 10);
+        let stairs = [];
+        let stairCoords = [];
+        let spoiledStairs = {};
+        let starStairs = {};
+        let elevatorStairs = {};
+        let currentStepIndex = 0;
+        
+        let playerX = 0;
+        let playerY = 0;
+        let targetPlayerX = 0;
+        let targetPlayerY = 0;
+        let playerFacing = 1;
+        let isFalling = false;
+        let fallYVelocity = 0;
+        let jumpAnimProgress = 1;
+
+        let gaugeCurrent = 100;
+        let decaySpeed = 0.35;
+
+        let cameraX = 0;
+        let cameraY = 0;
+        let targetCameraX = 0;
+        let targetCameraY = 0;
+
+        let particles = [];
+        let cityBuildings = [];
+        let cloudObjects = [];
+        let starObjects = [];
+        let screenShakeTime = 0;
+
+        let lastEatenSpoiledFood = null;
+
+        const STAIR_WIDTH = 68;
+        const STAIR_HEIGHT = 44;
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function generateStairPath(count = 5000) {
+            stairs = [];
+            stairCoords = [];
+            spoiledStairs = {};
+            starStairs = {};
+            elevatorStairs = {};
+
+            let currentX = 0;
+            let currentY = 0;
+            let currentDir = 1;
+            stairs.push(currentDir);
+            stairCoords.push({ x: currentX, y: currentY });
+
+            let currentRunLength = 0;
+            let targetRunLimit = Math.floor(Math.random() * 3) + 1;
+
+            for (let i = 1; i < count; i++) {
+                currentRunLength++;
+
+                if (currentRunLength >= targetRunLimit) {
+                    currentDir = -currentDir;
+                    currentRunLength = 0;
+                    
+                    if (Math.random() < 0.28) {
+                        targetRunLimit = Math.floor(Math.random() * 6) + 3;
+                    } else {
+                        targetRunLimit = Math.floor(Math.random() * 2) + 1;
+                    }
+                }
+
+                currentX += currentDir * STAIR_WIDTH;
+                currentY -= STAIR_HEIGHT;
+                stairs.push(currentDir);
+                stairCoords.push({ x: currentX, y: currentY });
+
+                if (i > 3) {
+                    const rand = Math.random();
+                    if (i >= 400 && i % 200 === 0) {
+                        elevatorStairs[i] = true;
+                    } else if (rand < 0.1) {
+                        const randomFood = SPOILED_FOODS[Math.floor(Math.random() * SPOILED_FOODS.length)];
+                        spoiledStairs[i] = randomFood;
+                    } else if (rand < 0.28) {
+                        starStairs[i] = true;
+                    }
+                }
+            }
+
+            cityBuildings = [];
+            for (let i = 0; i < 25; i++) {
+                cityBuildings.push({
+                    x: (i - 12) * 80 + (Math.random() - 0.5) * 30,
+                    width: 60 + Math.random() * 40,
+                    height: 180 + Math.random() * 180,
+                    color: ['#1e293b', '#334155', '#475569', '#1e1b4b'][Math.floor(Math.random() * 4)]
+                });
+            }
+
+            cloudObjects = [];
+            for (let i = 0; i < 60; i++) {
+                cloudObjects.push({
+                    x: (Math.random() - 0.5) * 800,
+                    y: -300 - i * 160 - Math.random() * 100,
+                    size: 40 + Math.random() * 60
+                });
+            }
+
+            starObjects = [];
+            for (let i = 0; i < 150; i++) {
+                starObjects.push({
+                    x: (Math.random() - 0.5) * 900,
+                    y: -12000 - Math.random() * 15000,
+                    size: Math.random() * 3.5 + 1.2,
+                    alpha: Math.random() * 0.85 + 0.15
+                });
+            }
+        }
+
+        function startGame() {
+            audio.init();
+            gameState = 'PLAYING';
+            score = 0;
+            currentStepIndex = 0;
+            playerFacing = 1;
+            isFalling = false;
+            fallYVelocity = 0;
+            gaugeCurrent = 100;
+            decaySpeed = 0.35;
+            lastEatenSpoiledFood = null;
+
+            generateStairPath(5000);
+
+            playerX = stairCoords[0].x;
+            playerY = stairCoords[0].y;
+            targetPlayerX = playerX;
+            targetPlayerY = playerY;
+
+            targetCameraX = canvas.width / 2 - playerX;
+            targetCameraY = canvas.height * 0.65 - playerY;
+            cameraX = targetCameraX;
+            cameraY = targetCameraY;
+
+            document.getElementById('hud').classList.remove('opacity-0');
+            document.getElementById('touch-controls').classList.remove('opacity-0');
+            document.getElementById('screen-touch-zones').classList.remove('opacity-0');
+            document.getElementById('main-menu').classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('gameover-modal').classList.add('opacity-0', 'pointer-events-none');
+
+            updateHUD();
+        }
+
+        function reviveGame() {
+            if (starItemCount < 300) return;
+
+            isFalling = false;
+            fallYVelocity = 0;
+            gaugeCurrent = 100;
+            decaySpeed = 0.35;
+            gameState = 'PLAYING';
+
+            playerX = stairCoords[currentStepIndex].x;
+            playerY = stairCoords[currentStepIndex].y;
+            targetPlayerX = playerX;
+            targetPlayerY = playerY;
+
+            targetCameraX = canvas.width / 2 - playerX;
+            targetCameraY = canvas.height * 0.65 - playerY;
+
+            audio.playRevive();
+
+            document.getElementById('hud').classList.remove('opacity-0');
+            document.getElementById('touch-controls').classList.remove('opacity-0');
+            document.getElementById('screen-touch-zones').classList.remove('opacity-0');
+            document.getElementById('gameover-modal').classList.add('opacity-0', 'pointer-events-none');
+
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('score-text').textContent = `${score} 계단`;
+            document.getElementById('best-score-text').textContent = `${bestScore} 계단`;
+            document.getElementById('item-count-text').textContent = `${starItemCount}`;
+            
+            const fill = document.getElementById('gauge-fill');
+            fill.style.width = `${Math.max(0, gaugeCurrent)}%`;
+            
+            if (gaugeCurrent < 30) {
+                fill.className = "h-full bg-gradient-to-r from-rose-500 to-red-600 rounded-full transition-all duration-75 ease-linear animate-pulse";
+            } else {
+                fill.className = "h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full transition-all duration-75 ease-linear";
+            }
+        }
+
+        function handleStepAction(isTurnAction) {
+            if (gameState !== 'PLAYING' || isFalling) return;
+
+            if (isTurnAction) {
+                playerFacing = -playerFacing;
+                audio.playTurn();
+            } else {
+                audio.playStep();
+            }
+
+            const nextIndex = currentStepIndex + 1;
+            const requiredDir = stairs[nextIndex];
+
+            if (playerFacing === requiredDir) {
+                currentStepIndex = nextIndex;
+                score++;
+
+                targetPlayerX = stairCoords[currentStepIndex].x;
+                targetPlayerY = stairCoords[currentStepIndex].y;
+                jumpAnimProgress = 0;
+
+                // Elevator Warp Item Check
+                if (elevatorStairs[currentStepIndex]) {
+                    delete elevatorStairs[currentStepIndex];
+                    const warpSteps = 200;
+                    currentStepIndex = Math.min(stairs.length - 1, currentStepIndex + warpSteps);
+                    score += warpSteps;
+                    targetPlayerX = stairCoords[currentStepIndex].x;
+                    targetPlayerY = stairCoords[currentStepIndex].y;
+                    playerFacing = stairs[currentStepIndex];
+                    audio.playElevator();
+                    createStarParticles(targetPlayerX, targetPlayerY);
+                    screenShakeTime = 12;
+                }
+
+                // Star Item Collection (Gauge is refilled normally upon successful step, no star-based penalty)
+                if (starStairs[currentStepIndex]) {
+                    delete starStairs[currentStepIndex];
+                    starItemCount++;
+                    localStorage.setItem('pig_star_count', starItemCount.toString());
+                    audio.playStar();
+                    createStarParticles(targetPlayerX, targetPlayerY);
+                }
+
+                // Spoiled Food Item Check (Gauge deduction removed as requested)
+                if (spoiledStairs[currentStepIndex]) {
+                    const spoiledItem = spoiledStairs[currentStepIndex];
+                    lastEatenSpoiledFood = spoiledItem;
+                    delete spoiledStairs[currentStepIndex];
+
+                    screenShakeTime = 6;
+                    audio.playEatSpoiled();
+                    // Normal gauge refill continues upon step
+                    gaugeCurrent = Math.min(100, gaugeCurrent + 14);
+                } else {
+                    gaugeCurrent = Math.min(100, gaugeCurrent + 14);
+                }
+
+                decaySpeed = 0.35 + (score * 0.0018);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    localStorage.setItem('pig_best_score', bestScore.toString());
+                }
+                checkUnlocks(score);
+
+                createJumpParticles(targetPlayerX, targetPlayerY);
+            } else {
+                triggerGameOver();
+            }
+
+            updateHUD();
+        }
+
+        function checkUnlocks(currentScore) {
+            CHARACTERS.forEach(char => {
+                if (char.milestone > 0 && currentScore >= char.milestone) {
+                    if (!unlockedCharIds.includes(char.id)) {
+                        unlockedCharIds.push(char.id);
+                        localStorage.setItem('pig_unlocked_chars', JSON.stringify(unlockedCharIds));
+                    }
+                }
+            });
+        }
+
+        function triggerGameOver() {
+            if (isFalling) return;
+            isFalling = true;
+            fallYVelocity = -6;
+            screenShakeTime = 14;
+            audio.playFall();
+
+            setTimeout(() => {
+                gameState = 'GAMEOVER';
+                showGameOverModal();
+            }, 800);
+        }
+
+        function showGameOverModal() {
+            document.getElementById('hud').classList.add('opacity-0');
+            document.getElementById('touch-controls').classList.add('opacity-0');
+            document.getElementById('screen-touch-zones').classList.add('opacity-0');
+            
+            const elFinalScore = document.getElementById('final-score');
+            if (elFinalScore) elFinalScore.textContent = `${score} 계단`;
+
+            const elFinalBestScore = document.getElementById('final-best-score');
+            if (elFinalBestScore) elFinalBestScore.textContent = `${bestScore} 계단`;
+
+            const elFinalItemCount = document.getElementById('final-item-count');
+            if (elFinalItemCount) elFinalItemCount.textContent = `⭐ ${starItemCount}개`;
+
+            const charData = CHARACTERS.find(c => c.id === selectedCharId) || CHARACTERS[0];
+            const elGameoverIcon = document.getElementById('gameover-icon');
+            if (elGameoverIcon) elGameoverIcon.textContent = charData.icon;
+
+            const btnRevive = document.getElementById('btn-revive');
+            if (btnRevive) {
+                if (starItemCount >= 300) {
+                    btnRevive.disabled = false;
+                    btnRevive.className = "w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base soft-btn flex items-center justify-center gap-2 border border-yellow-200/50 shadow-lg shadow-amber-500/30 opacity-100 cursor-pointer";
+                    btnRevive.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> ⭐ 300개 보존 부활! (별 유지)`;
+                } else {
+                    btnRevive.disabled = true;
+                    btnRevive.className = "w-full py-3 bg-slate-800 text-slate-500 font-bold text-xs rounded-xl border border-white/5 opacity-60 cursor-not-allowed flex items-center justify-center gap-2";
+                    btnRevive.innerHTML = `<i class="fa-solid fa-lock"></i> ⭐ 300개 필요 (${starItemCount}/300)`;
+                }
+            }
+
+            const hazardBox = document.getElementById('spoiled-hazard-box');
+            if (hazardBox) {
+                if (lastEatenSpoiledFood) {
+                    hazardBox.classList.remove('hidden');
+                    const elHazardTitle = document.getElementById('hazard-title');
+                    if (elHazardTitle) elHazardTitle.textContent = `⚠️ [${lastEatenSpoiledFood.name}] 섭취 유해 정보`;
+                    
+                    const elHazardDesc = document.getElementById('hazard-desc');
+                    if (elHazardDesc) {
+                        elHazardDesc.innerHTML = `
+                            <span class="text-rose-300 font-bold">${lastEatenSpoiledFood.symptom}</span><br>
+                            ${lastEatenSpoiledFood.effect}
+                        `;
+                    }
+                } else {
+                    hazardBox.classList.add('hidden');
+                }
+            }
+
+            const modal = document.getElementById('gameover-modal');
+            if (modal) modal.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        function createJumpParticles(x, y) {
+            for (let i = 0; i < 6; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 24,
+                    y: y + 8,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: (Math.random() - 1) * 2.5,
+                    size: Math.floor(Math.random() * 5) + 3,
+                    alpha: 1,
+                    color: CHARACTERS.find(c => c.id === selectedCharId)?.color || '#f472b6'
+                });
+            }
+        }
+
+        function createStarParticles(x, y) {
+            for (let i = 0; i < 10; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 24,
+                    y: y - 10,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 1) * 5,
+                    size: Math.floor(Math.random() * 6) + 4,
+                    alpha: 1,
+                    color: '#fbbf24'
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= 0.05;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            if (screenShakeTime > 0) {
+                const shakeX = (Math.random() - 0.5) * screenShakeTime;
+                const shakeY = (Math.random() - 0.5) * screenShakeTime;
+                ctx.translate(shakeX, shakeY);
+                screenShakeTime--;
+            }
+
+            drawAscendingBackground();
+
+            if (gameState === 'PLAYING') {
+                targetCameraX = canvas.width / 2 - playerX;
+                targetCameraY = canvas.height * 0.65 - playerY;
+            }
+            cameraX += (targetCameraX - cameraX) * 0.18;
+            cameraY += (targetCameraY - cameraY) * 0.18;
+
+            ctx.save();
+            ctx.translate(Math.round(cameraX), Math.round(cameraY));
+
+            drawWorldScenery();
+
+            drawStairs();
+
+            updateParticles();
+            
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.alpha;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            drawCharacter();
+
+            ctx.restore();
+            ctx.restore();
+
+            if (gameState === 'PLAYING' && !isFalling) {
+                gaugeCurrent -= decaySpeed;
+                updateHUD();
+
+                if (gaugeCurrent <= 0) {
+                    triggerGameOver();
+                }
+
+                if (jumpAnimProgress < 1) {
+                    jumpAnimProgress += 0.28;
+                    playerX += (targetPlayerX - playerX) * 0.4;
+                    playerY += (targetPlayerY - playerY) * 0.4;
+                } else {
+                    playerX = targetPlayerX;
+                    playerY = targetPlayerY;
+                }
+            } else if (isFalling) {
+                playerY += fallYVelocity;
+                fallYVelocity += 0.65;
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        function drawAscendingBackground() {
+            const spaceThreshold = 400;
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+
+            if (score < 100) {
+                grad.addColorStop(0, '#bae6fd');
+                grad.addColorStop(0.6, '#fbcfe8');
+                grad.addColorStop(1, '#fed7aa');
+            } else if (score < 250) {
+                grad.addColorStop(0, '#818cf8');
+                grad.addColorStop(0.5, '#c084fc');
+                grad.addColorStop(1, '#f472b6');
+            } else if (score < spaceThreshold) {
+                grad.addColorStop(0, '#0f172a');
+                grad.addColorStop(0.5, '#1e1b4b');
+                grad.addColorStop(1, '#312e81');
+            } else {
+                grad.addColorStop(0, '#030712');
+                grad.addColorStop(0.5, '#090d16');
+                grad.addColorStop(1, '#1e1035');
+            }
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawWorldScenery() {
+            const isSpace = score >= 400;
+
+            if (!isSpace) {
+                cityBuildings.forEach(b => {
+                    if (b.height > -cameraY - 400 && b.height < -cameraY + canvas.height + 600) {
+                        ctx.fillStyle = b.color;
+                        ctx.fillRect(b.x, 100 - b.height, b.width, b.height);
+
+                        ctx.fillStyle = 'rgba(253, 224, 71, 0.4)';
+                        for (let wx = b.x + 8; wx < b.x + b.width - 12; wx += 16) {
+                            for (let wy = 120 - b.height; wy < 80; wy += 28) {
+                                ctx.fillRect(wx, wy, 8, 12);
+                            }
+                        }
+                    }
+                });
+
+                cloudObjects.forEach(c => {
+                    if (c.y > -cameraY - 300 && c.y < -cameraY + canvas.height + 300) {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+                        ctx.beginPath();
+                        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+                        ctx.arc(c.x + c.size * 0.6, c.y - c.size * 0.2, c.size * 0.8, 0, Math.PI * 2);
+                        ctx.arc(c.x - c.size * 0.6, c.y - c.size * 0.1, c.size * 0.7, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+            } else {
+                ctx.fillStyle = 'rgba(192, 132, 252, 0.08)';
+                ctx.beginPath();
+                ctx.arc(-cameraX + 100, -cameraY + 200, 250, 0, Math.PI * 2);
+                ctx.fill();
+
+                starObjects.forEach(s => {
+                    if (s.y > -cameraY - 400 && s.y < -cameraY + canvas.height + 400) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.globalAlpha = s.alpha * (0.6 + Math.sin(Date.now() * 0.003 + s.x) * 0.4);
+                        ctx.fillRect(s.x, s.y, s.size, s.size);
+                        ctx.globalAlpha = 1.0;
+                    }
+                });
+            }
+        }
+
+        function drawStairs() {
+            const renderStart = Math.max(0, currentStepIndex - 15);
+            const renderEnd = Math.min(stairs.length, currentStepIndex + 35);
+
+            for (let i = renderStart; i < renderEnd; i++) {
+                const coord = stairCoords[i];
+                const isCurrent = (i === currentStepIndex);
+                
+                ctx.save();
+                ctx.translate(Math.floor(coord.x), Math.floor(coord.y));
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                roundRect(ctx, -STAIR_WIDTH / 2 + 2, 6, STAIR_WIDTH, STAIR_HEIGHT / 2, 8);
+                ctx.fill();
+
+                ctx.fillStyle = isCurrent ? '#18181b' : '#000000';
+                roundRect(ctx, -STAIR_WIDTH / 2, 0, STAIR_WIDTH, STAIR_HEIGHT / 2, 8);
+                ctx.fill();
+
+                ctx.lineWidth = isCurrent ? 3.5 : 2;
+                ctx.strokeStyle = isCurrent ? '#f472b6' : '#38bdf8';
+                ctx.stroke();
+
+                ctx.fillStyle = isCurrent ? '#fbcfe8' : '#e0f2fe';
+                roundRect(ctx, -STAIR_WIDTH / 2 + 3, 2, STAIR_WIDTH - 6, 5, 2.5);
+                ctx.fill();
+
+                ctx.fillStyle = isCurrent ? '#f472b6' : '#94a3b8';
+                ctx.font = 'bold 11px Jua, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${i + 1}m`, 0, 16);
+
+                // Draw Warp Elevator Item
+                if (elevatorStairs[i]) {
+                    const bobY = Math.sin(Date.now() * 0.01 + i) * 4;
+                    ctx.font = '26px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('🛗', 0, -16 + bobY);
+                }
+
+                // Draw Star Item on Stair
+                if (starStairs[i]) {
+                    const bobY = Math.sin(Date.now() * 0.008 + i) * 3;
+                    ctx.font = '22px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('⭐', 0, -14 + bobY);
+                }
+
+                // Draw Spoiled Food on Stair
+                if (spoiledStairs[i]) {
+                    const food = spoiledStairs[i];
+                    ctx.font = '22px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(food.icon, 0, -14);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+        }
+
+        function drawCharacter() {
+            const charData = CHARACTERS.find(c => c.id === selectedCharId) || CHARACTERS[0];
+            
+            ctx.save();
+            ctx.translate(Math.floor(playerX), Math.floor(playerY - 24));
+
+            ctx.scale(playerFacing, 1);
+
+            let bounceY = 0;
+            if (jumpAnimProgress < 1) {
+                bounceY = -Math.sin(jumpAnimProgress * Math.PI) * 14;
+            }
+
+            ctx.translate(0, Math.floor(bounceY));
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.beginPath();
+            ctx.arc(0, -2, 26, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = charData.color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.ellipse(0, 20, 20, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.font = '40px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(charData.icon, 0, -2);
+
+            ctx.restore();
+        }
+
+        function renderCharacterList() {
+            const container = document.getElementById('char-list-container');
+            container.innerHTML = '';
+
+            CHARACTERS.forEach(char => {
+                const isUnlocked = unlockedCharIds.includes(char.id);
+                const isSelected = (selectedCharId === char.id);
+
+                const card = document.createElement('div');
+                card.className = `soft-card p-4 transition-all ${
+                    isSelected 
+                        ? 'border-2 border-pink-400 bg-slate-900/90' 
+                        : isUnlocked 
+                            ? 'border border-white/10 bg-slate-900/60' 
+                            : 'border border-white/5 bg-slate-950/40 opacity-60'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-start gap-3.5">
+                        <div class="w-16 h-16 bg-slate-800/80 border border-white/20 rounded-2xl flex items-center justify-center text-4xl shrink-0 relative shadow-inner">
+                            ${char.icon}
+                            ${!isUnlocked ? '<div class="absolute inset-0 bg-slate-950/80 rounded-2xl flex items-center justify-center text-rose-400 text-lg"><i class="fa-solid fa-lock"></i></div>' : ''}
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-base font-bold ${isUnlocked ? 'text-pink-200' : 'text-slate-500'}">${char.name}</h3>
+                                ${char.milestone > 0 ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isUnlocked ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-slate-800 text-slate-500'}">${char.milestone}계단</span>` : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300">기본</span>'}
+                            </div>
+                            <p class="text-xs text-amber-300 font-bold mt-1 font-sans">"${char.tagline}"</p>
+                            <p class="text-[11px] text-slate-300 mt-1.5 bg-slate-950/60 p-2 rounded-lg border border-white/5 leading-relaxed font-sans">${char.description}</p>
+                            
+                            <div class="mt-3 flex justify-end">
+                                ${isSelected 
+                                    ? '<span class="px-3.5 py-1 bg-pink-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 soft-btn"><i class="fa-solid fa-check"></i> 선택됨</span>' 
+                                    : isUnlocked 
+                                        ? `<button onclick="selectCharacter('${char.id}')" class="px-3.5 py-1 bg-slate-800 hover:bg-pink-500 hover:text-slate-950 text-pink-300 font-bold text-xs rounded-xl border border-pink-400/40 transition soft-btn">착용하기</button>` 
+                                        : `<span class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-lock text-[9px] mr-1"></i> ${char.milestone}계단 도달 필요</span>`}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        window.selectCharacter = function(charId) {
+            if (!unlockedCharIds.includes(charId)) return;
+            selectedCharId = charId;
+            localStorage.setItem('pig_selected_char', charId);
+            updateSelectedCharacterUI();
+            renderCharacterList();
+            audio.playTurn();
+        };
+
+        function updateSelectedCharacterUI() {
+            const charData = CHARACTERS.find(c => c.id === selectedCharId) || CHARACTERS[0];
+            document.getElementById('menu-char-avatar').textContent = charData.icon;
+            document.getElementById('menu-char-name').textContent = charData.name;
+            document.getElementById('menu-char-tagline').textContent = `"${charData.tagline}"`;
+        }
+
+        // Event Binding
+        document.getElementById('btn-start').addEventListener('click', startGame);
+        document.getElementById('btn-restart').addEventListener('click', startGame);
+        document.getElementById('btn-revive').addEventListener('click', reviveGame);
+
+        document.getElementById('btn-go-menu').addEventListener('click', () => {
+            gameState = 'MENU';
+            document.getElementById('gameover-modal').classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('main-menu').classList.remove('opacity-0', 'pointer-events-none');
+            updateSelectedCharacterUI();
+        });
+
+        // Fast Ultra-Responsive Pointer/Touch Listeners
+        const btnTurn = document.getElementById('btn-touch-turn');
+        const btnClimb = document.getElementById('btn-touch-climb');
+        const zoneTurn = document.getElementById('zone-turn');
+        const zoneClimb = document.getElementById('zone-climb');
+
+        function setupInstantTouch(element, isTurnAction) {
+            element.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleStepAction(isTurnAction);
+            });
+        }
+
+        setupInstantTouch(btnTurn, true);
+        setupInstantTouch(btnClimb, false);
+        setupInstantTouch(zoneTurn, true);
+        setupInstantTouch(zoneClimb, false);
+
+        // Keyboard Controls Setup
+        window.addEventListener('keydown', (e) => {
+            if (gameState !== 'PLAYING') return;
+
+            const code = e.code;
+            if (code === 'KeyS') {
+                e.preventDefault();
+                handleStepAction(true);
+            } else if (code === 'KeyF' || code === 'KeyG') {
+                e.preventDefault();
+                handleStepAction(false);
+            }
+        });
+
+        // Character Encyclopedia Modal
+        const charModal = document.getElementById('char-modal');
+        document.getElementById('btn-open-chars').addEventListener('click', () => {
+            renderCharacterList();
+            charModal.classList.remove('translate-y-full');
+        });
+        document.getElementById('btn-close-chars').addEventListener('click', () => {
+            charModal.classList.add('translate-y-full');
+        });
+
+        // Initial launch
+        window.onload = function() {
+            updateSelectedCharacterUI();
+            render();
+        };
+    </script>
+</body>
+</html>
